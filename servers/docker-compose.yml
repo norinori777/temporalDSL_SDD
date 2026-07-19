@@ -1,0 +1,116 @@
+services:
+  # 共通DB（アプリ用）
+  db:
+    image: postgres:16-alpine
+    container_name: mvp-db
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppassword
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - C:/work/temporalDSL_SDD/servers/db-data/app:/var/lib/postgresql/data
+
+  # Temporal 用 DB
+  temporal-db:
+    image: postgres:16-alpine
+    container_name: temporal-db
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: temporal
+    ports:
+      - "5433:5432"
+    volumes:
+      - C:/work/temporalDSL_SDD/servers/db-data/temporal:/var/lib/postgresql/data
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: temporal-server
+    environment:
+      DB: postgres
+      DB_PORT: 5432
+      DB_HOST: temporal-db
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal
+      POSTGRES_DB: temporal
+      TEMPORAL_UI_PORT: 8088
+    ports:
+      - "7233:7233"
+      - "8088:8088"
+    depends_on:
+      - temporal-db
+
+  frontend:
+    build: ./frontend
+    container_name: mvp-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend-workflow
+
+  backend-workflow:
+    build: ./backend-workflow
+    container_name: mvp-backend-workflow
+    environment:
+      DATABASE_URL: "postgresql://appuser:apppassword@db:5432/appdb?schema=workflow"
+      NODE_ENV: production
+      TEMPORAL_ADDRESS: "temporal:7233"
+    ports:
+      - "3001:3001"
+    depends_on:
+      - db
+      - temporal
+
+  microservice1:
+    build: ./microservice1
+    container_name: mvp-microservice1
+    environment:
+      DATABASE_URL: "postgresql://appuser:apppassword@db:5432/appdb?schema=microservice1"
+      NODE_ENV: production
+    ports:
+      - "3101:3101"
+    depends_on:
+      - db
+
+  microservice2:
+    build: ./microservice2
+    container_name: mvp-microservice2
+    environment:
+      DATABASE_URL: "postgresql://appuser:apppassword@db:5432/appdb?schema=microservice2"
+      NODE_ENV: production
+    ports:
+      - "3102:3102"
+    depends_on:
+      - db
+
+  microservice3:
+    build: ./microservice3
+    container_name: mvp-microservice3
+    environment:
+      DATABASE_URL: "postgresql://appuser:apppassword@db:5432/appdb?schema=microservice3"
+      NODE_ENV: production
+    ports:
+      - "3103:3103"
+    depends_on:
+      - db
+
+  saas-backend:
+    build: ./saas/backend
+    container_name: mvp-saas-backend
+    environment:
+      DATABASE_URL: "postgresql://appuser:apppassword@db:5432/appdb?schema=saas"
+      NODE_ENV: production
+    ports:
+      - "3201:3201"
+    depends_on:
+      - db
+
+  saas-frontend:
+    build: ./saas/frontend
+    container_name: mvp-saas-frontend
+    ports:
+      - "3200:8080"
+    depends_on:
+      - saas-backend

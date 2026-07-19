@@ -1,0 +1,37 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+RUN apk add --no-cache openssl
+
+# 依存関係インストール
+COPY package*.json ./
+RUN npm install
+
+# ソースコピー＆ビルド
+COPY tsconfig.json ./
+COPY src ./src
+COPY prisma ./prisma
+
+# Prisma クライアント生成
+RUN npx prisma generate
+
+RUN npm run build
+
+# 本番用イメージ
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache openssl
+
+COPY package*.json ./
+RUN npm install --omit=dev
+
+COPY --from=builder /app/dist ./dist
+COPY prisma ./prisma
+
+ENV NODE_ENV=production
+EXPOSE 3001
+
+CMD ["node", "dist/index.js"]
