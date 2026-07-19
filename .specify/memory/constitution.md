@@ -1,50 +1,38 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# temporalDSL_SDD Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### 1. Temporal DSL First
+機能追加は常に Temporal DSL の理解と表現力の向上を優先する。実装は、ワークフロー、アクション、検証、永続化のどれが DSL の理解にどう寄与するかを明確にしてから進める。UI や API は DSL を隠すのではなく、DSL を学べる形で露出させる。
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### 2. 日本語中心の開発
+実装中のやり取り、コードコメント、設計説明、レビュー用説明は日本語を基本とする。必要な英語は外部ライブラリ名や標準 API の識別子に限定し、説明文は日本語で補足する。README、設計書、画面説明も可能な限り日本語で統一する。
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### 3. 設計書は docs 配下に残す
+Temporal DSL を理解するために実装した結果は、必ず `/docs` 配下に設計書として残す。設計書には、ワークフロー構造、アクション定義、バージョン方針、検証ルール、画面と DB の役割分担を含める。実装だけで終わらせず、再学習できる記録を成果物とする。
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### 4. 制約は保存時と実行時の両方で検証する
+開始ノード 1 つ、終了ノード 1 つ、循環検出、未接続ノード検出、分岐数検証などの制約は、画面上の編集時と Temporal 実行時の両方で同じ考え方で検証する。画面だけで防いだり、実行時だけで防いだりしない。検証ロジックは再利用可能にする。
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### 5. スキーマはバージョン付きで互換性を守る
+アクションスキーマ、YAML 宣言、ワークフロー定義はバージョンを持つ。新しい定義を導入するときは、既存の定義を壊さず、後方互換性を保てる移行方針を用意する。DB に保存する定義は、いつのバージョンの契約かを追跡できることを必須とする。
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Additional Constraints
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+- ワークフローはアクションの組み合わせで構成する。
+- アクションのリクエスト宣言は YAML 形式で DB に保持し、画面上の選択可能なアクション一覧と実行時 validation の両方に利用する。
+- アクションスキーマは事前に DB 登録する。
+- アクションの実体は 3 つのマイクロサービスとして分離する。
+- 未定義の振る舞いを増やすより、制約を明文化して小さく実装する。
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## Development Workflow
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+1. まず DSL とデータモデルを言語化し、必要なら `/docs` に設計書を追加する。
+2. 次に検証ルールを実装し、保存時に不正なワークフローを防ぐ。
+3. 最後に UI と永続化をつなぎ、画面で組み立てた内容を再読込できるようにする。
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+この憲法は、設計・実装・レビューの上位ルールとして扱う。例外運用が必要な場合は、理由と影響範囲を設計書に残してから変更する。各変更は、Temporal DSL の理解にどう貢献するかを説明できることを条件とする。
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-07-20 | **Last Amended**: 2026-07-20
