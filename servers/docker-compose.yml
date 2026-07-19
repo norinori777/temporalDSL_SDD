@@ -29,7 +29,8 @@ services:
     image: temporalio/auto-setup:latest
     container_name: temporal-server
     environment:
-      DB: postgres
+      DB: postgres12
+      POSTGRES_SEEDS: postgres:5432
       DB_PORT: 5432
       DB_HOST: temporal-db
       POSTGRES_USER: temporal
