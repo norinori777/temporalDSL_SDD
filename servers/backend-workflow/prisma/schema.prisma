@@ -11,3 +11,14 @@ model HealthCheck {
   id    Int    @id @default(autoincrement())
   label String @default("backend-workflow")
 }
+
+model ActionSchema {
+  id                     Int      @id @default(autoincrement())
+  actionCode             String
+  version                String
+  requestDeclarationYaml String
+  selectable             Boolean  @default(true)
+  createdAt              DateTime @default(now())
+
+  @@unique([actionCode, version])
+}

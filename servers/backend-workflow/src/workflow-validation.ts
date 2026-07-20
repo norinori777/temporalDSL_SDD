@@ -1,3 +1,5 @@
+import { parse } from 'yaml';
+
 export type NodeKind = 'start' | 'end' | 'action' | 'parallel' | 'condition';
 
 export interface WorkflowNode {
@@ -5,6 +7,7 @@ export interface WorkflowNode {
   kind: NodeKind;
   actionCode?: string;
   actionVersion?: string;
+  requestYaml?: string;
   expectedBranches?: number;
   label?: string;
 }
@@ -23,7 +26,13 @@ export interface WorkflowDefinition {
 export interface ActionSchemaVersion {
   actionCode: string;
   version: string;
-  requestYaml: string;
+  requestDeclarationYaml: string;
+}
+
+export interface ActionRequestDeclarationSchema {
+  requiredKeys?: string[];
+  optionalKeys?: string[];
+  allowedKeys?: string[];
 }
 
 export interface ValidationIssue {
@@ -51,6 +60,7 @@ const CYCLE_ERROR = 'CYCLE_DETECTED';
 const DISCONNECTED_NODE_ERROR = 'DISCONNECTED_NODE';
 const BRANCH_COUNT_ERROR = 'BRANCH_COUNT_MISMATCH';
 const ACTION_SCHEMA_ERROR = 'ACTION_SCHEMA_NOT_FOUND';
+const REQUEST_YAML_ERROR = 'REQUEST_YAML_INVALID';
 const INVALID_EXPECTED_BRANCH_COUNT_ERROR = 'INVALID_EXPECTED_BRANCH_COUNT';
 
 export function validateWorkflowDefinition(
@@ -93,6 +103,7 @@ export function validateWorkflowDefinition(
   const adjacency = buildAdjacency(context.workflow.edges, nodeMap, issues);
   validateBranchCounts(context.workflow.nodes, adjacency, issues);
   validateActionSchemaVersions(context.workflow.nodes, context.availableActions, issues);
+  validateActionRequestDeclarations(context.workflow.nodes, context.availableActions, issues);
   validateCycles(context.workflow.nodes, adjacency, issues);
   validateDisconnectedNodes(context.workflow.nodes, adjacency, issues, startNodes[0]?.id);
 
@@ -199,6 +210,171 @@ function validateActionSchemaVersions(
       });
     }
   }
+}
+
+function validateActionRequestDeclarations(
+  nodes: WorkflowNode[],
+  availableActions: ActionSchemaVersion[],
+  issues: ValidationIssue[],
+): void {
+  for (const node of nodes) {
+    if (node.kind !== 'action') {
+      continue;
+    }
+
+    if (!node.requestYaml) {
+      issues.push({
+        code: REQUEST_YAML_ERROR,
+        message: `アクションノード '${node.id}' に requestYaml が必要です。`,
+        nodeId: node.id,
+      });
+      continue;
+    }
+
+    const schema = availableActions.find(
+      (candidate) => candidate.actionCode === node.actionCode && candidate.version === node.actionVersion,
+    );
+
+    if (!schema) {
+      continue;
+    }
+
+    const schemaIssues = validateRequestYamlAgainstDeclaration(
+      node.requestYaml,
+      schema.requestDeclarationYaml,
+    );
+
+    for (const schemaIssue of schemaIssues) {
+      issues.push({
+        code: schemaIssue.code,
+        message: `アクションノード '${node.id}': ${schemaIssue.message}`,
+        nodeId: node.id,
+      });
+    }
+  }
+}
+
+function validateRequestYamlAgainstDeclaration(
+  requestYaml: string,
+  declarationYaml: string,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  const requestDocument = parseYamlDocument(requestYaml, issues, 'requestYaml');
+  const declarationDocument = parseYamlDocument(
+    declarationYaml,
+    issues,
+    'requestDeclarationYaml',
+  );
+
+  if (!requestDocument || !declarationDocument) {
+    return issues;
+  }
+
+  const requestObject = asRecord(requestDocument, issues, 'requestYaml');
+  const declarationObject = asDeclarationSchema(declarationDocument, issues);
+
+  if (!requestObject || !declarationObject) {
+    return issues;
+  }
+
+  const requiredKeys = new Set(declarationObject.requiredKeys ?? []);
+  const optionalKeys = new Set(declarationObject.optionalKeys ?? []);
+  const allowedKeys = new Set(
+    declarationObject.allowedKeys ?? [...requiredKeys, ...optionalKeys],
+  );
+
+  for (const requiredKey of requiredKeys) {
+    if (!(requiredKey in requestObject)) {
+      issues.push({
+        code: REQUEST_YAML_ERROR,
+        message: `必須キー '${requiredKey}' が requestYaml にありません。`,
+      });
+    }
+  }
+
+  for (const requestKey of Object.keys(requestObject)) {
+    if (!allowedKeys.has(requestKey)) {
+      issues.push({
+        code: REQUEST_YAML_ERROR,
+        message: `許可されていないキー '${requestKey}' が requestYaml に含まれています。`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function parseYamlDocument(
+  yamlText: string,
+  issues: ValidationIssue[],
+  fieldName: string,
+): unknown | undefined {
+  try {
+    return parse(yamlText) as unknown;
+  } catch (error) {
+    issues.push({
+      code: REQUEST_YAML_ERROR,
+      message: `${fieldName} の YAML を解析できません: ${(error as Error).message}`,
+    });
+    return undefined;
+  }
+}
+
+function asRecord(
+  value: unknown,
+  issues: ValidationIssue[],
+  fieldName: string,
+): Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    issues.push({
+      code: REQUEST_YAML_ERROR,
+      message: `${fieldName} はオブジェクト形式である必要があります。`,
+    });
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function asDeclarationSchema(
+  value: unknown,
+  issues: ValidationIssue[],
+): ActionRequestDeclarationSchema | undefined {
+  const record = asRecord(value, issues, 'requestDeclarationYaml');
+  if (!record) {
+    return undefined;
+  }
+
+  const requiredKeys = normalizeStringArray(record.requiredKeys, 'requiredKeys', issues);
+  const optionalKeys = normalizeStringArray(record.optionalKeys, 'optionalKeys', issues);
+  const allowedKeys = normalizeStringArray(record.allowedKeys, 'allowedKeys', issues);
+
+  return {
+    requiredKeys,
+    optionalKeys,
+    allowedKeys,
+  };
+}
+
+function normalizeStringArray(
+  value: unknown,
+  fieldName: string,
+  issues: ValidationIssue[],
+): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    issues.push({
+      code: REQUEST_YAML_ERROR,
+      message: `${fieldName} は文字列配列である必要があります。`,
+    });
+    return undefined;
+  }
+
+  return value;
 }
 
 function validateCycles(
