@@ -6,7 +6,7 @@ RUN apk add --no-cache openssl
 
 # 依存関係インストール
 COPY package*.json ./
-RUN npm install
+RUN yarn install
 
 # ソースコピー＆ビルド
 COPY tsconfig.json ./
@@ -16,7 +16,7 @@ COPY prisma ./prisma
 # Prisma クライアント生成
 RUN npx prisma generate
 
-RUN npm run build
+RUN yarn run build
 
 # 本番用イメージ
 FROM node:20-alpine
@@ -26,7 +26,7 @@ WORKDIR /app
 RUN apk add --no-cache openssl
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN yarn install --production --frozen-lockfile
 
 COPY --from=builder /app/dist ./dist
 COPY prisma ./prisma

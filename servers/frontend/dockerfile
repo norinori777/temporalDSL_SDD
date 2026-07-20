@@ -3,13 +3,13 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN yarn install
 
 COPY tsconfig.json ./
 COPY src ./src
 COPY index.html ./
 
-RUN npm run build
+RUN yarn run build
 
 FROM nginx:1.27-alpine
 

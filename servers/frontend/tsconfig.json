@@ -12,7 +12,7 @@
     "outDir": "dist",
     "resolveJsonModule": true,
     "sourceMap": true,
-    "ignoreDeprecations": "6.0",
+    // "ignoreDeprecations": "6.0",
     "jsx": "react-jsx",
     "types": ["vite/client"]
   },
