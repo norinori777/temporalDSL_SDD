@@ -5,6 +5,14 @@ import {
   WorkflowDefinition,
   validateWorkflowDefinition,
 } from './workflow-validation';
+import {
+  createActionDefinition,
+  listActionDefinitions,
+  listSelectableActionDefinitions,
+  updateActionDefinitionSelectable,
+  validateActionDefinitionForCreate,
+} from './action-definition-store';
+import { ActionDefinitionInput } from './action-definition-validation';
 
 const app = fastify({ logger: false });
 const port = 3001;
@@ -13,6 +21,14 @@ const prisma = new PrismaClient();
 interface ValidateWorkflowRequest {
   workflow?: WorkflowDefinition;
   availableActions?: ActionSchemaVersion[];
+}
+
+interface ActionDefinitionRequest extends ActionDefinitionInput {
+  id?: number;
+}
+
+interface ActionDefinitionSelectableRequest {
+  selectable?: boolean;
 }
 
 app.get('/', async () => ({
@@ -26,16 +42,97 @@ app.get('/health', async () => ({
 }));
 
 app.get('/action-schemas', async () => {
-  const schemas = await prisma.actionSchema.findMany({
-    where: { selectable: true },
-    orderBy: [{ actionCode: 'asc' }, { version: 'asc' }],
-  });
+  const schemas = await listSelectableActionDefinitions(prisma);
 
   return schemas.map((schema) => ({
+    id: schema.id,
     actionCode: schema.actionCode,
     version: schema.version,
+    displayName: schema.displayName,
     requestDeclarationYaml: schema.requestDeclarationYaml,
+    selectable: schema.selectable,
+    createdAt: schema.createdAt,
+    updatedAt: schema.updatedAt,
   } satisfies ActionSchemaVersion));
+});
+
+app.get('/action-definitions', async () => {
+  const definitions = await listActionDefinitions(prisma);
+
+  return definitions;
+});
+
+app.post('/action-definitions/validate', async (request, reply) => {
+  const body = request.body as ActionDefinitionRequest;
+
+  const result = await validateActionDefinitionForCreate(prisma, body);
+
+  if (!result.valid) {
+    return reply.status(400).send(result);
+  }
+
+  return reply.send(result);
+});
+
+app.post('/action-definitions', async (request, reply) => {
+  const body = request.body as ActionDefinitionRequest;
+  const validation = await validateActionDefinitionForCreate(prisma, body);
+
+  if (!validation.valid) {
+    return reply.status(400).send(validation);
+  }
+
+  const createdDefinition = await createActionDefinition(prisma, body);
+  return reply.status(201).send(createdDefinition);
+});
+
+app.patch('/action-definitions/:id', async (request, reply) => {
+  const params = request.params as { id: string };
+  const body = request.body as ActionDefinitionSelectableRequest;
+  const parsedId = Number(params.id);
+
+  if (!Number.isInteger(parsedId)) {
+    return reply.status(400).send({
+      valid: false,
+      issues: [
+        {
+          code: 'ACTION_DEFINITION_ID_INVALID',
+          message: 'id は数値で指定してください。',
+          field: 'id',
+        },
+      ],
+    });
+  }
+
+  if (typeof body.selectable !== 'boolean') {
+    return reply.status(400).send({
+      valid: false,
+      issues: [
+        {
+          code: 'SELECTABLE_INVALID',
+          message: 'selectable は true または false である必要があります。',
+          field: 'selectable',
+        },
+      ],
+    });
+  }
+
+  const updatedDefinition = await updateActionDefinitionSelectable(prisma, parsedId, body.selectable);
+
+  if (!updatedDefinition) {
+    return reply.status(404).send({
+      valid: false,
+      issues: [
+        {
+          code: 'ACTION_DEFINITION_NOT_FOUND',
+          message: '指定された Action 定義が見つかりません。',
+          field: 'id',
+        },
+      ],
+    });
+  }
+
+  return reply.send(updatedDefinition);
 });
 
 app.post('/workflow/validate', async (request, reply) => {
@@ -83,10 +180,7 @@ app.post('/workflow/validate-db', async (request, reply) => {
     });
   }
 
-  const availableActions = await prisma.actionSchema.findMany({
-    where: { selectable: true },
-    orderBy: [{ actionCode: 'asc' }, { version: 'asc' }],
-  });
+  const availableActions = await listSelectableActionDefinitions(prisma);
 
   const result = validateWorkflowDefinition(
     body.workflow,

@@ -16,9 +16,11 @@ model ActionSchema {
   id                     Int      @id @default(autoincrement())
   actionCode             String
   version                String
+  displayName            String   @default("")
   requestDeclarationYaml String
   selectable             Boolean  @default(true)
   createdAt              DateTime @default(now())
+  updatedAt              DateTime @default(now()) @updatedAt
 
   @@unique([actionCode, version])
 }

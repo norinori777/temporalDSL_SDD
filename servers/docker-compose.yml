@@ -43,13 +43,15 @@ services:
     depends_on:
       - temporal-db
 
-  frontend:
-    build: ./frontend
-    container_name: mvp-frontend
+  frontend-workflow:
+    build: ./frontend-workflow
+    container_name: mvp-frontend-workflow
     ports:
       - "3000:80"
     depends_on:
       - backend-workflow
+    networks:
+      - frontend-workflow-network
 
   backend-workflow:
     build: ./backend-workflow
@@ -63,6 +65,9 @@ services:
     depends_on:
       - db
       - temporal
+    networks:
+      - default
+      - frontend-workflow-network
 
   microservice1:
     build: ./microservice1
@@ -107,6 +112,9 @@ services:
       - "3201:3201"
     depends_on:
       - db
+    networks:
+      - default
+      - saas-frontend-network
 
   saas-frontend:
     build: ./saas/frontend
@@ -115,3 +123,9 @@ services:
       - "3200:8080"
     depends_on:
       - saas-backend
+    networks:
+      - saas-frontend-network
+
+networks:
+  frontend-workflow-network:
+  saas-frontend-network:

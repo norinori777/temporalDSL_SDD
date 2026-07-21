@@ -24,9 +24,14 @@ export interface WorkflowDefinition {
 }
 
 export interface ActionSchemaVersion {
+  id?: number;
   actionCode: string;
   version: string;
+  displayName?: string;
   requestDeclarationYaml: string;
+  selectable?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface ActionRequestDeclarationSchema {

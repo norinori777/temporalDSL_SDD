@@ -6,6 +6,7 @@ const actionSchemas = [
   {
     actionCode: 'microservice1.reserveSlot',
     version: '0.9.0',
+    displayName: '予約枠を確保する（旧版）',
     selectable: false,
     requestDeclarationYaml: `requiredKeys:
   - reservationId
@@ -21,6 +22,7 @@ allowedKeys:
   {
     actionCode: 'microservice1.reserveSlot',
     version: '1.0.0',
+    displayName: '予約枠を確保する',
     selectable: true,
     requestDeclarationYaml: `requiredKeys:
   - reservationId
@@ -38,6 +40,7 @@ allowedKeys:
   {
     actionCode: 'microservice2.verifyApproval',
     version: '1.0.0',
+    displayName: '承認状態を検証する',
     selectable: true,
     requestDeclarationYaml: `requiredKeys:
   - workflowId
@@ -53,6 +56,7 @@ allowedKeys:
   {
     actionCode: 'microservice3.notifyCompletion',
     version: '1.0.0',
+    displayName: '完了を通知する',
     selectable: true,
     requestDeclarationYaml: `requiredKeys:
   - workflowId
@@ -78,6 +82,7 @@ async function main() {
       },
       create: schema,
       update: {
+        displayName: schema.displayName,
         requestDeclarationYaml: schema.requestDeclarationYaml,
         selectable: schema.selectable,
       },

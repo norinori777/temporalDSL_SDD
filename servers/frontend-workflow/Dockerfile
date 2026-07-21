@@ -6,6 +6,7 @@ COPY package*.json ./
 RUN yarn install
 
 COPY tsconfig.json ./
+COPY vite.config.js ./
 COPY src ./src
 COPY index.html ./
 
@@ -13,6 +14,7 @@ RUN yarn run build
 
 FROM nginx:1.27-alpine
 
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
