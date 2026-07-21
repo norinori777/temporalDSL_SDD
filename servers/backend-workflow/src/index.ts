@@ -2,7 +2,7 @@ import fastify from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import {
   ActionSchemaVersion,
-  WorkflowDefinition,
+  WorkflowDefinition as LegacyWorkflowDefinition,
   validateWorkflowDefinition,
 } from './workflow-validation';
 import {
@@ -13,13 +13,15 @@ import {
   validateActionDefinitionForCreate,
 } from './action-definition-store';
 import { ActionDefinitionInput } from './action-definition-validation';
+import { listWorkflowDefinitions, listWorkflowVersions, getWorkflowVersion, createWorkflowVersion, validateWorkflowDefinitionForPersist } from './workflow-definition-store';
+import { WorkflowDefinitionInput as BuilderWorkflowDefinitionInput } from './workflow-definition-validation';
 
 const app = fastify({ logger: false });
 const port = 3001;
 const prisma = new PrismaClient();
 
 interface ValidateWorkflowRequest {
-  workflow?: WorkflowDefinition;
+  workflow?: LegacyWorkflowDefinition;
   availableActions?: ActionSchemaVersion[];
 }
 
@@ -30,6 +32,8 @@ interface ActionDefinitionRequest extends ActionDefinitionInput {
 interface ActionDefinitionSelectableRequest {
   selectable?: boolean;
 }
+
+interface WorkflowBuilderRequest extends BuilderWorkflowDefinitionInput {}
 
 app.get('/', async () => ({
   service: 'backend-workflow',
@@ -133,6 +137,91 @@ app.patch('/action-definitions/:id', async (request, reply) => {
   }
 
   return reply.send(updatedDefinition);
+});
+
+app.get('/workflow-definitions', async () => {
+  const definitions = await listWorkflowDefinitions(prisma);
+  return definitions;
+});
+
+app.get('/workflow-definitions/:workflowDefinitionId/versions', async (request, reply) => {
+  const params = request.params as { workflowDefinitionId: string };
+  const parsedWorkflowDefinitionId = Number(params.workflowDefinitionId);
+
+  if (!Number.isInteger(parsedWorkflowDefinitionId)) {
+    return reply.status(400).send({
+      valid: false,
+      issues: [
+        {
+          code: 'WORKFLOW_DEFINITION_ID_INVALID',
+          message: 'workflowDefinitionId は数値で指定してください。',
+          targetType: 'workflow',
+        },
+      ],
+    });
+  }
+
+  const versions = await listWorkflowVersions(prisma, parsedWorkflowDefinitionId);
+  return versions;
+});
+
+app.get('/workflow-definitions/:workflowDefinitionId/versions/:version', async (request, reply) => {
+  const params = request.params as { workflowDefinitionId: string; version: string };
+  const parsedWorkflowDefinitionId = Number(params.workflowDefinitionId);
+  const parsedVersion = Number(params.version);
+
+  if (!Number.isInteger(parsedWorkflowDefinitionId) || !Number.isInteger(parsedVersion)) {
+    return reply.status(400).send({
+      valid: false,
+      issues: [
+        {
+          code: 'WORKFLOW_VERSION_INVALID',
+          message: 'workflowDefinitionId と version は数値で指定してください。',
+          targetType: 'workflow',
+        },
+      ],
+    });
+  }
+
+  const versionRecord = await getWorkflowVersion(prisma, parsedWorkflowDefinitionId, parsedVersion);
+
+  if (!versionRecord) {
+    return reply.status(404).send({
+      valid: false,
+      issues: [
+        {
+          code: 'WORKFLOW_VERSION_NOT_FOUND',
+          message: '指定されたワークフロー版が見つかりません。',
+          targetType: 'workflow',
+        },
+      ],
+    });
+  }
+
+  return versionRecord;
+});
+
+app.post('/workflow-definitions/validate', async (request, reply) => {
+  const body = request.body as WorkflowBuilderRequest;
+  const result = await validateWorkflowDefinitionForPersist(prisma, body);
+
+  if (!result.valid) {
+    return reply.status(400).send(result);
+  }
+
+  return reply.send(result);
+});
+
+app.post('/workflow-definitions', async (request, reply) => {
+  const body = request.body as WorkflowBuilderRequest;
+  const validation = await validateWorkflowDefinitionForPersist(prisma, body);
+
+  if (!validation.valid) {
+    return reply.status(400).send(validation);
+  }
+
+  const savedVersion = await createWorkflowVersion(prisma, body);
+  return reply.status(201).send(savedVersion);
 });
 
 app.post('/workflow/validate', async (request, reply) => {

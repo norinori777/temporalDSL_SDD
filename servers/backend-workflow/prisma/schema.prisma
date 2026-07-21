@@ -21,6 +21,61 @@ model ActionSchema {
   selectable             Boolean  @default(true)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @default(now()) @updatedAt
+  workflowNodes          WorkflowNode[]
 
   @@unique([actionCode, version])
+}
+
+model WorkflowDefinition {
+  id            Int             @id @default(autoincrement())
+  name          String          @unique
+  description   String          @default("")
+  currentVersion Int            @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+  versions      WorkflowVersion[]
+}
+
+model WorkflowVersion {
+  id                 Int              @id @default(autoincrement())
+  workflowDefinitionId Int
+  version            Int
+  name               String
+  description        String           @default("")
+  status             String           @default("saved")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @default(now()) @updatedAt
+  workflowDefinition WorkflowDefinition @relation(fields: [workflowDefinitionId], references: [id], onDelete: Cascade)
+  nodes              WorkflowNode[]
+  edges              WorkflowEdge[]
+
+  @@unique([workflowDefinitionId, version])
+}
+
+model WorkflowNode {
+  id                 Int             @id @default(autoincrement())
+  workflowVersionId   Int
+  nodeKey            String
+  nodeType           String
+  label              String
+  actionDefinitionId Int?
+  positionX          Int             @default(0)
+  positionY          Int             @default(0)
+  createdAt          DateTime        @default(now())
+  workflowVersion    WorkflowVersion  @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+  actionDefinition   ActionSchema?    @relation(fields: [actionDefinitionId], references: [id], onDelete: SetNull)
+
+  @@unique([workflowVersionId, nodeKey])
+}
+
+model WorkflowEdge {
+  id               Int            @id @default(autoincrement())
+  workflowVersionId Int
+  fromNodeKey      String
+  toNodeKey        String
+  label            String         @default("")
+  createdAt        DateTime       @default(now())
+  workflowVersion   WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+
+  @@index([workflowVersionId])
 }
